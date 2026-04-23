@@ -71,3 +71,10 @@ The app will open at `http://localhost:8501`.
 - **Google Gemini API** — AI-powered analysis
 - **PyPDF2** — PDF text extraction
 - **python-docx** — DOCX text extraction
+## 🚀 How to Run the Project
+
+1. Install dependencies:
+pip install -r requirements.txt
+
+2. Run the app:
+streamlit run app.py
