@@ -104,5 +104,3 @@ streamlit  run app.py
 ## 📌 Why This Project?
 This project helps job seekers improve their resumes using AI-driven insights. It increases the chances of passing ATS systems used by companies and makes resumes stronger for recruiters.
 
-## 👨‍💻 Author
-Developed by Rudra Pratap Singh using Python, Streamlit, and Google Gemini AI.
