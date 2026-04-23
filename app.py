@@ -1,358 +1,295 @@
 """
-AI Resume Analyzer & Enhancer
-=============================
-A Streamlit-based web application that analyzes resumes using Google Gemini AI
-and provides ATS compatibility scores, strengths, missing skills, and
-actionable improvement suggestions.
-
-Usage:
-    streamlit run app.py
+Main Streamlit application for Resume Analyzer and Builder
 """
 
 import streamlit as st
-import os
+import pandas as pd
 from pathlib import Path
-from dotenv import load_dotenv
+import tempfile
+from datetime import datetime
 
-from utils.parser import extract_text
-from utils.analyzer import analyze_resume, configure_gemini, compute_ats_score
-from utils.ui_components import render_ats_score, render_section, render_summary
+# Import custom modules
+from parser import ResumeParser
+from analyzer import ResumeAnalyzer
+from skills import JOB_ROLES_SKILLS, get_all_job_roles, get_skills_for_role, get_keywords_for_role
+from generator import ResumeBuilder, format_resume_data
 
-# ---------------------------------------------------------------------------
-# 1. Load environment variables FIRST — before any Streamlit calls
-# ---------------------------------------------------------------------------
-# Try loading from .env in the project root
-env_path = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# Read API key from environment (set by .env or system env)
-ENV_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
-
-# ---------------------------------------------------------------------------
-# 2. Page configuration
-# ---------------------------------------------------------------------------
+# Page configuration
 st.set_page_config(
-    page_title="AI Resume Analyzer",
+    page_title="Resume Analyzer & Builder",
     page_icon="📄",
-    layout="centered",
-    initial_sidebar_state="auto",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# ---------------------------------------------------------------------------
-# 3. Custom CSS
-# ---------------------------------------------------------------------------
+# Custom CSS for better UI
 st.markdown("""
 <style>
-    /* ---- Global Overrides ---- */
-    .stApp {
-        background: linear-gradient(180deg, #0a192f 0%, #0d1b30 50%, #112240 100%);
-    }
-
-    /* Header */
-    .main-header {
-        text-align: center;
-        padding: 20px 0 10px 0;
-    }
-    .main-header h1 {
-        font-size: 2.6rem;
-        font-weight: 800;
-        background: linear-gradient(135deg, #64ffda 0%, #48c9b0 50%, #c792ea 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0;
-    }
-    .main-header p {
-        color: #8892b0;
-        font-size: 1.05rem;
-        margin-top: 6px;
-    }
-
-    /* Divider */
-    .gradient-divider {
-        height: 2px;
-        background: linear-gradient(90deg, transparent, #64ffda, transparent);
-        margin: 10px 0 30px 0;
-        border: none;
-    }
-
-    /* Upload area */
-    [data-testid="stFileUploader"] {
-        border-radius: 12px;
-    }
-
-    /* Buttons — enabled state */
     .stButton > button {
-        background: linear-gradient(135deg, #64ffda 0%, #48c9b0 100%) !important;
-        color: #0a192f !important;
-        font-weight: 700 !important;
-        font-size: 1rem !important;
-        padding: 0.6rem 2rem !important;
-        border: none !important;
-        border-radius: 8px !important;
         width: 100%;
-        transition: all 0.3s ease !important;
-        letter-spacing: 0.5px;
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
     }
     .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 25px rgba(100, 255, 218, 0.3) !important;
+        background-color: #45a049;
     }
-    /* Buttons — disabled state */
-    .stButton > button:disabled {
-        background: #233554 !important;
-        color: #8892b0 !important;
-        cursor: not-allowed !important;
-        transform: none !important;
-        box-shadow: none !important;
-    }
-
-    /* Metrics */
-    [data-testid="stMetric"] {
-        background: #1a1a2e;
+    .score-card {
+        background-color: #f0f2f6;
+        padding: 20px;
         border-radius: 10px;
-        padding: 12px;
         text-align: center;
-        border: 1px solid #233554;
     }
-
-    /* API key status badge */
-    .api-status {
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 13px;
-        font-weight: 600;
-        display: inline-block;
-        margin-top: 4px;
+    .success-text {
+        color: #28a745;
+        font-weight: bold;
     }
-    .api-connected {
-        background: #00C85122;
-        color: #00C851;
-        border: 1px solid #00C85155;
+    .warning-text {
+        color: #ffc107;
+        font-weight: bold;
     }
-    .api-missing {
-        background: #ff444422;
-        color: #ff4444;
-        border: 1px solid #ff444455;
+    .danger-text {
+        color: #dc3545;
+        font-weight: bold;
     }
-
-    /* Hide streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------------------------------------------------
-# 4. Header
-# ---------------------------------------------------------------------------
-st.markdown("""
-<div class="main-header">
-    <h1>📄 AI Resume Analyzer</h1>
-    <p>Upload your resume and get instant AI-powered feedback to boost your job application</p>
-</div>
-<div class="gradient-divider"></div>
-""", unsafe_allow_html=True)
+# Initialize components
+@st.cache_resource
+def init_analyzer():
+    return ResumeAnalyzer()
 
-# ---------------------------------------------------------------------------
-# 5. API Key Resolution — .env first, sidebar fallback
-# ---------------------------------------------------------------------------
-def get_api_key() -> str:
-    """Resolve the API key with priority: .env > sidebar input.
+@st.cache_resource
+def init_builder():
+    return ResumeBuilder()
 
-    Returns the active API key string (may be empty if none provided).
-    """
-    # Priority 1: .env / system environment variable
-    if ENV_API_KEY:
-        return ENV_API_KEY
+analyzer = init_analyzer()
+builder = init_builder()
+parser = ResumeParser()
 
-    # Priority 2: Sidebar input (stored in session state)
-    return st.session_state.get("sidebar_api_key", "")
+# Initialize session state
+if 'resume_text' not in st.session_state:
+    st.session_state.resume_text = None
+if 'analysis_done' not in st.session_state:
+    st.session_state.analysis_done = False
+if 'analysis_results' not in st.session_state:
+    st.session_state.analysis_results = None
 
-
-with st.sidebar:
-    st.markdown("### ⚙️ Settings")
-
-    if ENV_API_KEY:
-        # Key loaded from .env — show confirmation, no need for manual input
-        st.markdown(
-            '<span class="api-status api-connected">✅ API key loaded from .env</span>',
-            unsafe_allow_html=True,
-        )
-        st.caption("To change, update `GEMINI_API_KEY` in your `.env` file.")
-    else:
-        # No .env key — show input field
-        st.markdown(
-            '<span class="api-status api-missing">⚠️ No API key in .env</span>',
-            unsafe_allow_html=True,
-        )
-        st.text_input(
-            "Enter Gemini API Key",
-            type="password",
-            key="sidebar_api_key",
-            help="Get your free API key from https://aistudio.google.com/apikey",
-        )
-        st.markdown(
-            "[🔑 Get a free Gemini API key](https://aistudio.google.com/apikey)",
-        )
-
-    st.markdown("---")
-    st.markdown("Built with ❤️ using **Streamlit** & **Google Gemini**")
-
-# Resolve the active key
-active_api_key = get_api_key()
-has_api_key = bool(active_api_key)
-
-# ---------------------------------------------------------------------------
-# 6. Main Input Form
-# ---------------------------------------------------------------------------
-col1, col2 = st.columns([3, 2])
-
-with col1:
-    uploaded_file = st.file_uploader(
-        "📎 Upload your Resume",
-        type=["pdf", "docx"],
-        help="Supported formats: PDF, DOCX (max 10 MB)",
-    )
-
-with col2:
-    job_role = st.text_input(
-        "🎯 Target Job Role",
-        placeholder="e.g., Software Engineer, Data Analyst",
-        help="Enter the role you're applying for",
-    )
-
-# Show warning if no API key — but don't break the app
-if not has_api_key:
-    st.warning(
-        "⚠️ **No API key detected.** Add `GEMINI_API_KEY` to a `.env` file "
-        "in the project root, or enter it in the sidebar. "
-        "[Get a free key →](https://aistudio.google.com/apikey)"
-    )
-
-# ---------------------------------------------------------------------------
-# 7. Analyze Button — disabled when no API key
-# ---------------------------------------------------------------------------
-analyze_clicked = st.button(
-    "🚀 Analyze Resume",
-    use_container_width=True,
-    disabled=not has_api_key,
+# Sidebar navigation
+st.sidebar.title("📄 Navigation")
+page = st.sidebar.radio(
+    "Choose an option",
+    ["📊 Resume Analyzer", "📝 Resume Builder"]
 )
 
-if analyze_clicked:
-    # --- Validation ---
-    if not uploaded_file:
-        st.warning("⚠️ Please upload your resume first.")
-        st.stop()
-    if not job_role.strip():
-        st.warning("⚠️ Please enter a target job role.")
-        st.stop()
-
-    # --- Configure Gemini once ---
-    configure_gemini(active_api_key)
-
-    # --- Step 1: Extract Text ---
-    with st.spinner("📖 Extracting text from resume..."):
+def extract_resume_text(uploaded_file):
+    """Extract text from uploaded resume"""
+    if uploaded_file is not None:
         try:
-            resume_text = extract_text(uploaded_file)
+            text = parser.extract_text(uploaded_file)
+            if text:
+                return text
+            else:
+                st.error("Could not extract text from file. Please check the file format.")
+                return None
         except Exception as e:
-            st.error(f"❌ Failed to extract text: {e}")
-            st.stop()
+            st.error(f"Error processing file: {str(e)}")
+            return None
+    return None
 
-        if not resume_text.strip():
-            st.error(
-                "❌ No text could be extracted from the file. "
-                "It may be scanned/image-based."
+def display_score_card(score_dict):
+    """Display ATS score in a card format"""
+    total_score = score_dict['total_score']
+    
+    # Determine color based on score
+    if total_score >= 80:
+        color = "success-text"
+        emoji = "🎉"
+    elif total_score >= 60:
+        color = "warning-text"
+        emoji = "👍"
+    else:
+        color = "danger-text"
+        emoji = "📈"
+    
+    # Main score
+    st.markdown(f"""
+    <div class="score-card">
+        <h2>ATS Score: {total_score}% {emoji}</h2>
+        <hr>
+        <h4>Breakdown:</h4>
+        <p>📊 Skill Match: {score_dict['skill_match_score']}% (50% weight)</p>
+        <p>🔍 Keyword Relevance: {score_dict['keyword_score']}% (20% weight)</p>
+        <p>📐 Resume Structure: {score_dict['structure_score']}% (20% weight)</p>
+        <p>✅ Grammar Check: {score_dict['grammar_score']}% (10% weight)</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Main application logic
+if page == "📊 Resume Analyzer":
+    st.title("📊 Resume Analyzer")
+    st.write("Upload your resume to get an ATS compatibility score and improvement suggestions.")
+    
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        uploaded_file = st.file_uploader(
+            "Upload your resume (PDF or DOCX)",
+            type=["pdf", "docx"],
+            key="resume_upload"
+        )
+    
+    with col2:
+        job_title = st.selectbox(
+            "Select Job Role",
+            options=get_all_job_roles()
+        )
+    
+    if uploaded_file is not None:
+        # Extract text
+        resume_text = extract_resume_text(uploaded_file)
+        
+        if resume_text:
+            st.session_state.resume_text = resume_text
+            
+            # Run analysis
+            if st.button("🔍 Analyze Resume", key="analyze_btn"):
+                with st.spinner("Analyzing your resume..."):
+                    results = analyzer.analyze_resume(resume_text, job_title)
+                    st.session_state.analysis_done = True
+                    st.session_state.analysis_results = results
+                    st.rerun()
+    
+    # Display results
+    if st.session_state.analysis_done and st.session_state.analysis_results:
+        results = st.session_state.analysis_results
+        
+        st.divider()
+        st.subheader("Analysis Results")
+        
+        # Display score card
+        display_score_card(results)
+        
+        # Metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Skill Match", f"{results['skill_match_score']}%")
+        with col2:
+            st.metric("Keyword Match", f"{results['keyword_score']}%")
+        with col3:
+            st.metric("Structure Score", f"{results['structure_score']}%")
+        with col4:
+            st.metric("Grammar Score", f"{results['grammar_score']}%")
+        
+        # Recommendations
+        st.subheader("📋 Recommendations")
+        recommendations = results.get('recommendations', [])
+        if recommendations:
+            for i, rec in enumerate(recommendations, 1):
+                st.write(f"{i}. {rec}")
+        else:
+            st.info("Great job! Your resume looks good.")
+        
+        # Matched and Missing skills
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("✅ Matched Skills")
+            matched_skills = results.get('matched_skills', [])
+            if matched_skills:
+                for skill in matched_skills[:10]:
+                    st.write(f"• {skill}")
+            else:
+                st.info("No specific skills matched. Consider adding more technical skills.")
+        
+        with col2:
+            st.subheader("❌ Missing Skills")
+            missing_skills = results.get('missing_skills', [])
+            if missing_skills:
+                for skill in missing_skills[:10]:
+                    st.write(f"• {skill}")
+            else:
+                st.success("You have all the recommended skills!")
+        
+        # Export button
+        if st.button("📥 Download Analysis Report"):
+            st.info("Report download feature coming soon!")
+
+elif page == "📝 Resume Builder":
+    st.title("📝 Resume Builder")
+    st.write("Create a professional resume tailored for your target role.")
+    
+    # Create two columns for input
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        full_name = st.text_input("Full Name", value="John Doe")
+        email = st.text_input("Email", value="john@example.com")
+        phone = st.text_input("Phone", value="+1 (555) 123-4567")
+        location = st.text_input("Location", value="New York, NY")
+    
+    with col2:
+        job_role = st.selectbox("Target Job Role", options=get_all_job_roles())
+        years_exp = st.slider("Years of Experience", 0, 50, 5)
+        education = st.text_input("Education", value="B.S. in Computer Science")
+    
+    # Skills section
+    st.subheader("Skills")
+    recommended_skills = get_skills_for_role(job_role)
+    selected_skills = st.multiselect(
+        "Select your skills",
+        options=recommended_skills,
+        default=recommended_skills[:5] if recommended_skills else []
+    )
+    
+    # Experience section
+    st.subheader("Work Experience")
+    num_experiences = st.slider("Number of positions", 1, 5, 2)
+    
+    experiences = []
+    for i in range(num_experiences):
+        st.write(f"**Position {i+1}**")
+        col1, col2 = st.columns(2)
+        with col1:
+            company = st.text_input(f"Company {i+1}", value=f"Company {i+1}")
+            title = st.text_input(f"Job Title {i+1}", value=f"Position {i+1}")
+        with col2:
+            start_date = st.text_input(f"Start Date {i+1}", value="01/2020")
+            end_date = st.text_input(f"End Date {i+1}", value="Present")
+        
+        description = st.text_area(f"Description {i+1}", value="Describe your achievements and responsibilities")
+        
+        experiences.append({
+            "company": company,
+            "title": title,
+            "start_date": start_date,
+            "end_date": end_date,
+            "description": description
+        })
+    
+    # Generate resume
+    if st.button("📄 Generate Resume", key="generate_btn"):
+        with st.spinner("Generating your resume..."):
+            resume_data = {
+                "name": full_name,
+                "email": email,
+                "phone": phone,
+                "location": location,
+                "job_role": job_role,
+                "years_exp": years_exp,
+                "education": education,
+                "skills": selected_skills,
+                "experiences": experiences
+            }
+            
+            # Generate PDF
+            pdf_file = builder.build_resume(resume_data)
+            
+            st.success("Resume generated successfully!")
+            st.download_button(
+                label="📥 Download Resume (PDF)",
+                data=pdf_file,
+                file_name=f"{full_name}_Resume.pdf",
+                mime="application/pdf"
             )
-            st.stop()
-
-    st.success(f"✅ Extracted **{len(resume_text.split())}** words from resume.")
-
-    # --- Step 2: Local ATS Keyword Score ---
-    with st.spinner("🔑 Computing ATS keyword score..."):
-        ats_local = compute_ats_score(resume_text, job_role.strip())
-
-    # --- Step 3: AI Analysis ---
-    with st.spinner("🤖 Running AI analysis with Gemini..."):
-        try:
-            results = analyze_resume(resume_text, job_role.strip())
-        except Exception as e:
-            st.error(f"❌ AI analysis failed. Please check your API key or try again.\n\n{e}")
-            st.stop()
-
-    # -----------------------------------------------------------------
-    # DISPLAY RESULTS
-    # -----------------------------------------------------------------
-    st.markdown("---")
-    st.markdown(
-        "<h2 style='text-align:center; color:#ccd6f6;'>📊 Analysis Results</h2>",
-        unsafe_allow_html=True,
-    )
-    st.markdown("")
-
-    # --- ATS Scores (AI + Local) ---
-    score_col1, score_col2 = st.columns(2)
-
-    with score_col1:
-        render_ats_score(
-            score=results.get("ats_score", 0),
-            breakdown=results.get("score_breakdown"),
-            label="AI ATS Score",
-        )
-
-    with score_col2:
-        render_ats_score(
-            score=ats_local["score"],
-            label="Keyword Match Score",
-        )
-
-    st.markdown("")
-
-    # --- Local keyword details ---
-    with st.expander(f"🔑 Keyword Match Details — {len(ats_local['matched'])} matched, {len(ats_local['missing'])} missing"):
-        kw_col1, kw_col2 = st.columns(2)
-        with kw_col1:
-            st.markdown("**✅ Matched Keywords:**")
-            for kw in ats_local["matched"]:
-                st.markdown(f"&nbsp;&nbsp;• {kw}")
-        with kw_col2:
-            st.markdown("**❌ Missing Keywords:**")
-            for kw in ats_local["missing"]:
-                st.markdown(f"&nbsp;&nbsp;• {kw}")
-
-    st.markdown("")
-
-    # --- Summary ---
-    if results.get("summary"):
-        render_summary(results["summary"])
-
-    # --- Strengths & Missing Skills ---
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        render_section(
-            title="💪 Key Strengths",
-            items=results.get("key_strengths", ["No strengths identified."]),
-            icon="✅",
-            color="#64ffda",
-        )
-
-    with col_right:
-        render_section(
-            title="⚠️ Missing Skills",
-            items=results.get("missing_skills", ["No missing skills identified."]),
-            icon="❌",
-            color="#ff6b6b",
-        )
-
-    # --- Improvement Suggestions ---
-    render_section(
-        title="💡 Improvement Suggestions",
-        items=results.get("improvement_suggestions", ["No suggestions."]),
-        icon="➡️",
-        color="#ffbb33",
-    )
-
-    # --- Expandable: Raw Resume Text ---
-    with st.expander("📝 View Extracted Resume Text"):
-        st.text(resume_text)
