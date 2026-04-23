@@ -78,3 +78,31 @@ pip install -r requirements.txt
 
 2. Run the app:
 streamlit  run app.py
+## ✨ Additional Features
+- Clean & Interactive UI with custom Streamlit theme  
+- Secure API Key handling using `.env` file support  
+- Fast resume processing and instant AI feedback  
+- Supports multiple job role targeting for better customization  
+- Beginner-friendly project structure for easy understanding  
+
+## 📊 Analysis Output Includes
+- Overall ATS Score (0–100)  
+- Resume Formatting Review  
+- Keyword Optimization Check  
+- Skills Matching with Target Role  
+- Content Quality Suggestions  
+- Professional Summary Feedback  
+
+## 🛠 Future Improvements
+- Resume Download after Enhancement  
+- Cover Letter Generator  
+- LinkedIn Profile Analyzer  
+- Multiple Resume Comparison  
+- Job Description Matching Score  
+- Dark Mode UI Enhancements  
+
+## 📌 Why This Project?
+This project helps job seekers improve their resumes using AI-driven insights. It increases the chances of passing ATS systems used by companies and makes resumes stronger for recruiters.
+
+## 👨‍💻 Author
+Developed by Rudra Pratap Singh using Python, Streamlit, and Google Gemini AI.
