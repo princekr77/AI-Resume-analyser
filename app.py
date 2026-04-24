@@ -46,11 +46,13 @@ st.markdown("""
         background-color: #45a049;
     }
     .score-card {
-        background-color: #f0f2f6;
+        background-color: #e5edf5;
         padding: 20px;
         border-radius: 10px;
         text-align: center;
         margin: 10px 0;
+        color: #10233f;
+        border: 1px solid #c8d7e6;
     }
     .success-text {
         color: #28a745;
@@ -76,39 +78,91 @@ st.markdown("""
         text-align: center;
         margin: 10px 0;
     }
+    .metric-card h2,
+    .metric-card p,
+    .metric-card b {
+        color: #ffffff !important;
+    }
     .section-score {
-        background-color: white;
+        background-color: #eef4fb;
         padding: 10px;
         border-radius: 8px;
         margin: 5px 0;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        color: #10233f;
+        border: 1px solid #c8d7e6;
+    }
+    .section-score b,
+    .section-score span,
+    .section-score div {
+        color: #10233f !important;
     }
     .suggestion-box {
-        background-color: #e3f2fd;
-        padding: 10px;
-        border-left: 4px solid #2196f3;
+        background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+        padding: 12px 14px;
+        border-left: 4px solid #1d4ed8;
         margin: 10px 0;
-        border-radius: 5px;
+        border-radius: 8px;
+        color: #10233f;
+        border: 1px solid #bfdbfe;
+        line-height: 1.5;
+    }
+    .suggestion-box,
+    .suggestion-box p,
+    .suggestion-box span,
+    .suggestion-box strong,
+    .suggestion-box b {
+        color: #10233f !important;
+    }
+    .suggestion-box strong,
+    .suggestion-box b {
+        color: #0b3b8c !important;
     }
     .ai-suggestion {
-        background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+        background: linear-gradient(135deg, #ede9fe 0%, #eef2ff 100%);
         padding: 15px;
-        border-left: 4px solid #764ba2;
+        border-left: 4px solid #6d28d9;
         margin: 10px 0;
-        border-radius: 5px;
+        border-radius: 8px;
+        color: #1f1b4b;
+        border: 1px solid #d8ccff;
+        line-height: 1.6;
+    }
+    .ai-suggestion,
+    .ai-suggestion p,
+    .ai-suggestion li,
+    .ai-suggestion span,
+    .ai-suggestion strong,
+    .ai-suggestion h1,
+    .ai-suggestion h2,
+    .ai-suggestion h3,
+    .ai-suggestion h4 {
+        color: #1f1b4b !important;
     }
     .chat-message {
-        padding: 10px;
+        padding: 12px 14px;
         border-radius: 10px;
-        margin: 5px 0;
+        margin: 8px 0;
+        line-height: 1.5;
     }
     .user-message {
-        background-color: #e3f2fd;
+        background-color: #dbeafe;
         text-align: right;
+        color: #10233f;
+        border: 1px solid #bfdbfe;
     }
     .assistant-message {
-        background-color: #f5f5f5;
-        border-left: 3px solid #4CAF50;
+        background-color: #ecfdf5;
+        border-left: 3px solid #16a34a;
+        color: #10233f;
+        border: 1px solid #bbf7d0;
+    }
+    .chat-message,
+    .chat-message p,
+    .chat-message span,
+    .chat-message b,
+    .chat-message strong {
+        color: #10233f !important;
     }
     .stTextArea textarea {
         font-family: monospace;
@@ -117,16 +171,24 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         margin: 10px 0;
+        line-height: 1.5;
     }
     .api-active {
-        background-color: #d4edda;
-        border: 1px solid #c3e6cb;
-        color: #155724;
+        background-color: #dcfce7;
+        border: 1px solid #86efac;
+        color: #14532d;
     }
     .api-inactive {
-        background-color: #f8d7da;
-        border: 1px solid #f5c6cb;
-        color: #721c24;
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        color: #7f1d1d;
+    }
+    .api-status,
+    .api-status p,
+    .api-status span,
+    .api-status b,
+    .api-status strong {
+        color: inherit !important;
     }
 </style>
 """, unsafe_allow_html=True)

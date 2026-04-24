@@ -1,7 +1,7 @@
 import requests
 
 # Paste your API key here for testing
-API_KEY = "AIzaSyCYfjP7vmihuxI4XAuX4-tyT7S2S8yiO5o"  # Replace with your actual key
+API_KEY = "AIzaSyAEpMQxaTvbetElP1ZNqCOMp3KQVY6hdY8"  # Replace with your actual key
 
 url = f"https://generativelanguage.googleapis.com/v1beta/models?key={API_KEY}"
 

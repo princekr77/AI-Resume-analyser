@@ -6,6 +6,7 @@ This file should stay backend-only. Streamlit UI code belongs in app.py.
 
 import json
 import os
+import re
 from typing import Dict
 
 import requests
@@ -266,6 +267,15 @@ class LLMResumeAssistant:
                         "with a real key from Google AI Studio."
                     )
 
+                if response.status_code == 429:
+                    retry_match = re.search(r"retry in\s+([\d\.]+)s", error_message, re.IGNORECASE)
+                    retry_seconds = retry_match.group(1) if retry_match else None
+                    retry_text = f" Please try again in about {retry_seconds} seconds." if retry_seconds else ""
+                    return (
+                        "Gemini quota/rate limit has been reached for the current project."
+                        f"{retry_text} You can also check your Gemini usage and quota in Google AI Studio."
+                    )
+
                 last_error = f"API Error: {response.status_code} - {response.text}"
             except Exception as e:
                 last_error = f"Error calling Gemini API: {str(e)}"
@@ -280,12 +290,22 @@ class LLMResumeAssistant:
         try:
             prompt = self._build_prompt(context)
             if self.provider == "claude":
-                return self._call_claude(prompt)
-            if self.provider == "openai":
-                return self._call_openai(prompt)
-            if self.provider == "gemini":
-                return self._call_gemini(prompt)
-            return self._get_mock_feedback(context)
+                response = self._call_claude(prompt)
+            elif self.provider == "openai":
+                response = self._call_openai(prompt)
+            elif self.provider == "gemini":
+                response = self._call_gemini(prompt)
+            else:
+                return self._get_mock_feedback(context)
+
+            if "quota/rate limit has been reached" in response.lower():
+                return (
+                    f"{response}\n\n"
+                    "Showing a local fallback suggestion for now:\n\n"
+                    f"{self._get_mock_feedback(context)}"
+                )
+
+            return response
         except Exception as e:
             return f"Error getting AI feedback: {str(e)}\n\n{self._get_mock_feedback(context)}"
 
@@ -297,12 +317,22 @@ class LLMResumeAssistant:
         try:
             prompt = self._build_chat_prompt(user_message, context)
             if self.provider == "claude":
-                return self._call_claude(prompt)
-            if self.provider == "openai":
-                return self._call_openai(prompt)
-            if self.provider == "gemini":
-                return self._call_gemini(prompt)
-            return self._get_mock_chat_response(user_message, context)
+                response = self._call_claude(prompt)
+            elif self.provider == "openai":
+                response = self._call_openai(prompt)
+            elif self.provider == "gemini":
+                response = self._call_gemini(prompt)
+            else:
+                return self._get_mock_chat_response(user_message, context)
+
+            if "quota/rate limit has been reached" in response.lower():
+                return (
+                    f"{response}\n\n"
+                    "Showing a local fallback response for now:\n\n"
+                    f"{self._get_mock_chat_response(user_message, context)}"
+                )
+
+            return response
         except Exception as e:
             return f"Error: {str(e)}\n\n{self._get_mock_chat_response(user_message, context)}"
 
