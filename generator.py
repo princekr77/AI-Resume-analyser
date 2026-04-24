@@ -174,6 +174,37 @@ class ResumeBuilder:
         buffer.seek(0)
         return buffer.getvalue()
 
+    def build_resume(self, form_data: Dict) -> bytes:
+        """
+        Compatibility wrapper for the Streamlit app.
+
+        Accepts the app's raw form payload, normalizes it, and generates a PDF.
+        """
+        formatted_data = {
+            "name": form_data.get("name", ""),
+            "email": form_data.get("email", ""),
+            "phone": form_data.get("phone", ""),
+            "education": [],
+            "skills": form_data.get("skills", []),
+            "projects": form_data.get("projects", []),
+            "experience": []
+        }
+
+        education_value = form_data.get("education", "")
+        if education_value:
+            formatted_data["education"] = [{"degree": education_value}]
+
+        for exp in form_data.get("experiences", []):
+            formatted_data["experience"].append({
+                "title": exp.get("title", ""),
+                "company": exp.get("company", ""),
+                "duration": f"{exp.get('start_date', '')} - {exp.get('end_date', '')}".strip(" -"),
+                "description": exp.get("description", ""),
+                "achievements": ""
+            })
+
+        return self.generate_pdf(formatted_data)
+
 def format_resume_data(form_data: Dict) -> Dict:
     """
     Format form data into proper structure for PDF generation

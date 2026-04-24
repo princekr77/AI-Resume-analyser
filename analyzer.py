@@ -27,7 +27,10 @@ class ResumeAnalyzer:
     """Analyze resume content and generate scores"""
     
     def __init__(self):
-        self.stop_words = set(stopwords.words('english'))
+        try:
+            self.stop_words = set(stopwords.words('english'))
+        except LookupError:
+            self.stop_words = set()
         self.weak_verbs = [
             'worked', 'did', 'made', 'handled', 'responsible for',
             'assisted', 'helped', 'contributed to', 'participated in'
@@ -310,4 +313,73 @@ class ResumeAnalyzer:
                 "structure": weight_structure * 100,
                 "grammar": weight_grammar * 100
             }
+        }
+
+    def analyze_resume(self, resume_text: str, job_role: str, job_data: Dict = None) -> Dict:
+        """
+        Run the complete resume analysis flow expected by the Streamlit app.
+
+        Args:
+            resume_text: Extracted resume text
+            job_role: Selected job role from the UI
+            job_data: Optional override containing required_skills/keywords
+
+        Returns:
+            Dictionary with the full analysis payload used by the UI
+        """
+        if not resume_text or not resume_text.strip():
+            return {
+                "total_score": 0,
+                "skill_match_score": 0,
+                "keyword_score": 0,
+                "structure_score": 0,
+                "grammar_score": 0,
+                "matched_skills": [],
+                "missing_skills": [],
+                "recommendations": ["No readable resume text was found. Please upload a text-based PDF or DOCX file."],
+                "job_role": job_role,
+                "word_count": 0
+            }
+
+        required_skills = []
+        keywords = []
+
+        if job_data:
+            required_skills = job_data.get("required_skills", [])
+            keywords = job_data.get("keywords", [])
+        else:
+            try:
+                from skills import get_skills_for_role, get_keywords_for_role
+                required_skills = get_skills_for_role(job_role)
+                keywords = get_keywords_for_role(job_role)
+            except Exception:
+                required_skills = []
+                keywords = []
+
+        resume_skills = self.extract_skills(resume_text)
+        skill_match = self.calculate_skill_match(resume_skills, required_skills)
+        keyword_score = self.calculate_keyword_relevance(resume_text, keywords=keywords)
+        structure_score = self.check_resume_structure(resume_text)
+        grammar_score = self.check_grammar(resume_text)
+        score_breakdown = self.calculate_ats_score(
+            skill_match=skill_match,
+            keyword_score=keyword_score,
+            structure_score=structure_score,
+            grammar_score=grammar_score
+        )
+        recommendations = self.generate_suggestions(
+            resume_skills=resume_skills,
+            matched_skills=skill_match["matched_skills"],
+            missing_skills=skill_match["missing_skills"],
+            resume_text=resume_text
+        )
+
+        return {
+            **score_breakdown,
+            "matched_skills": sorted(skill_match["matched_skills"]),
+            "missing_skills": sorted(skill_match["missing_skills"]),
+            "recommendations": recommendations,
+            "extracted_skills": sorted(resume_skills),
+            "job_role": job_role,
+            "word_count": len(resume_text.split())
         }
